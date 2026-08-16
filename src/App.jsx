@@ -355,12 +355,21 @@ function App() {
               onClick={handleConnectWallet}
               className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-semibold tracking-wide transition-all border ${
                 wallet.connected
-                  ? 'border-zinc-400 bg-zinc-900 text-white shadow-sm'
+                  ? 'border-zinc-500 bg-zinc-900 text-white shadow-sm'
                   : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:bg-zinc-800 hover:text-white'
               }`}
             >
-              <Wallet className="h-4 w-4" />
-              {wallet.connected ? 'Wallet Connected' : 'Connect Wallet'}
+              <Wallet className="h-4 w-4 text-emerald-400" />
+              {wallet.connected ? (
+                <span className="flex items-center gap-2">
+                  <span className="font-mono">{wallet.address.slice(0, 6)}…{wallet.address.slice(-4)}</span>
+                  <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-[10px] font-mono font-bold text-emerald-400 border border-zinc-700">
+                    {wallet.balanceMon} MON
+                  </span>
+                </span>
+              ) : (
+                'Connect Wallet'
+              )}
             </button>
 
             <button

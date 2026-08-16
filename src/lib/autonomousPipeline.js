@@ -187,6 +187,51 @@ export async function runAutonomousPipeline({
   await new Promise((res) => setTimeout(res, 800))
 
   // ----------------------------------------------------
+  // Gatekeeper Check: Stop before creating on-chain job if audit failed (< 70/100)
+  // ----------------------------------------------------
+  const isAuditorApproved = verification?.score === undefined || Number(verification.score) >= 70 || verification.passed === true
+
+  if (!isAuditorApproved) {
+    updateStage(
+      STAGES.NEGOTIATE,
+      `⚠️ Verification Auditor Gate REJECTED output (Score: ${verification?.score || 0}/100 - NEEDS REVISION). On-chain Job Creation & Escrow Deposit HALTED to protect your MON!`,
+      {
+        matchedAgent,
+        searchReasoning,
+        negotiationRounds,
+        negotiatedPriceMon,
+        initialQuoteMon,
+        agentMinAcceptableMon,
+        savingsPercent,
+        verification,
+        payoutDecision,
+        source,
+        taskOutputLocked: false,
+        taskOutput,
+        decomposedPlan,
+        reputationBefore: initialRep,
+      }
+    )
+
+    return {
+      matchedAgent,
+      negotiatedPriceMon,
+      initialQuoteMon,
+      agentMinAcceptableMon,
+      searchReasoning,
+      negotiationRounds,
+      savingsPercent,
+      verification,
+      payoutDecision,
+      source,
+      taskOutput,
+      taskOutputLocked: false,
+      haltedByAuditor: true,
+      decomposedPlan,
+    }
+  }
+
+  // ----------------------------------------------------
   // Stage 3: Create Job on JobMarketplace
   // ----------------------------------------------------
   updateStage(STAGES.CREATE_JOB, `Submitting Job Creation transaction for Agent #${matchedAgent.id}... Please confirm transaction in your MetaMask wallet popup!`)
@@ -361,6 +406,7 @@ export async function runAutonomousPipeline({
     source,
     taskOutput,
     taskOutputLocked: false,
+    decomposedPlan,
     reputationBefore: initialRep,
     reputationAfter: finalRep,
     txHashes: {

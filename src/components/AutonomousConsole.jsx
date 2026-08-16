@@ -340,40 +340,47 @@ export default function AutonomousConsole({
                   </div>
                 </div>
 
-                {/* Task Decomposition */}
+                {/* Multi-Agent Sub-Hiring & Task Decomposition Card */}
                 {pipelineData?.decomposedPlan?.subtaskResults && (
-                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/90 p-3 space-y-2">
-                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-zinc-200">
-                        <Cpu className="h-3.5 w-3.5 text-zinc-400" />
+                  <div className="rounded-xl border border-zinc-700 bg-zinc-900/90 p-4 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+                      <span className="flex items-center gap-2 font-bold text-xs text-white">
+                        <Cpu className="h-4 w-4 text-emerald-400" />
                         Multi-Agent Sub-Hiring & Task Decomposition
                       </span>
-                      <span className="rounded-full bg-zinc-900 border border-zinc-800 px-2 py-0.5 text-[9px] font-mono font-bold text-zinc-300">
-                        {pipelineData?.decomposedPlan?.subtaskResults?.length || 0} Sub-Agents
+                      <span className="rounded-full bg-emerald-950 border border-emerald-800 px-2.5 py-0.5 text-[10px] font-mono font-bold text-emerald-300">
+                        {pipelineData?.decomposedPlan?.subtaskResults?.length || 0} Specialized Agents Hired
                       </span>
                     </div>
 
                     {pipelineData.decomposedPlan.planReasoning && (
-                      <p className="text-[11px] text-zinc-400 italic font-sans">
-                        Master Agent Strategy: "{pipelineData.decomposedPlan.planReasoning}"
+                      <p className="text-[11px] text-zinc-300 italic font-sans bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                        <strong className="text-white font-mono uppercase text-[9px] block mb-0.5">Master Agent Strategy:</strong>
+                        "{pipelineData.decomposedPlan.planReasoning}"
                       </p>
                     )}
 
-                    <div className="space-y-2 pt-1">
+                    <div className="space-y-2.5 pt-1">
                       {pipelineData.decomposedPlan.subtaskResults.map((subItem, idx) => (
-                        <div key={idx} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 space-y-1">
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="font-bold text-white flex items-center gap-1.5">
-                              <span className="h-4 w-4 rounded-full bg-zinc-800 text-zinc-200 text-[10px] flex items-center justify-center font-mono border border-zinc-700">
+                        <div key={idx} className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 space-y-1.5 transition-all hover:border-zinc-700">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-white flex items-center gap-2">
+                              <span className="h-5 w-5 rounded-full bg-zinc-800 text-emerald-400 text-[11px] flex items-center justify-center font-mono font-bold border border-zinc-700">
                                 #{idx + 1}
                               </span>
                               {subItem.title}
                             </span>
-                            <span className="rounded-full bg-zinc-900 border border-zinc-700 px-2 py-0.5 text-[10px] font-mono font-bold text-zinc-200">
-                              Agent #{subItem.matchedAgent?.id || idx + 1}: {subItem.negotiatedPriceMon} MON
+                            <span className="rounded-full bg-zinc-900 border border-zinc-700 px-2.5 py-0.5 text-[10px] font-mono font-bold text-emerald-300">
+                              Assigned Agent #{subItem.matchedAgent?.id || idx + 1} ({subItem.matchedAgent?.name || `Agent #${idx + 1}`}) • {subItem.negotiatedPriceMon} MON
                             </span>
                           </div>
-                          <p className="text-[11px] text-zinc-400">{subItem.instruction}</p>
+                          <p className="text-[11px] text-zinc-400 font-sans leading-relaxed">{subItem.instruction}</p>
+                          {subItem.taskOutput && (
+                            <div className="mt-2 rounded-lg bg-zinc-900/80 border border-zinc-800/80 p-2 text-[10px] text-zinc-300 font-mono">
+                              <span className="text-zinc-500 font-bold block mb-1">Sub-Agent Output Preview:</span>
+                              <p className="line-clamp-2 italic">{subItem.taskOutput}</p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -406,7 +413,7 @@ export default function AutonomousConsole({
                     Verification Auditor Gate
                   </span>
                   <span className="rounded-full bg-zinc-900 border border-zinc-700 px-2.5 py-0.5 text-[10px] font-mono font-bold text-white">
-                    Score: {pipelineData.verification.score}/100 ({pipelineData.verification.passed ? 'PASSED ✓' : 'NEEDS REVISION'})
+                    Score: {pipelineData.verification.score}/100 ({Number(pipelineData.verification.score) >= 70 ? 'PASSED ✓' : 'NEEDS REVISION'})
                   </span>
                 </div>
 
@@ -414,7 +421,7 @@ export default function AutonomousConsole({
                   <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-2 text-center">
                     <span className="block text-[9px] font-mono uppercase text-zinc-500">Escrow Payout Approval</span>
                     <span className="block font-bold text-sm text-white font-mono mt-0.5">
-                      {pipelineData.payoutDecision?.recommendedPayoutPercent ?? pipelineData.verification.recommendedPayoutPercent}% Approved
+                      {Number(pipelineData.verification.score) >= 70 ? 100 : 0}% Approved
                     </span>
                   </div>
 
@@ -468,7 +475,20 @@ export default function AutonomousConsole({
             )}
 
             {/* Executed Prompt Output */}
-            {pipelineData?.taskOutputLocked ? (
+            {pipelineData?.verification && Number(pipelineData.verification.score) < 70 ? (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/90 p-6 text-center space-y-3 shadow-xl">
+                <Lock className="mx-auto h-8 w-8 text-zinc-400" />
+                <h4 className="font-bold text-sm text-white">🔒 Deliverable Content Withheld & Locked</h4>
+                <p className="text-xs text-zinc-300 max-w-md mx-auto leading-relaxed font-sans">
+                  The AI deliverable failed independent quality audit (<strong className="text-white font-mono">Score: {pipelineData.verification.score}/100 after {pipelineData.verification.attempts || 1} Attempts</strong>).
+                  On-chain job creation & escrow deposit were halted to protect your MON. Deliverable content is locked.
+                </p>
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-zinc-950 border border-zinc-800 px-3.5 py-1 text-[11px] font-mono text-zinc-400">
+                  <ShieldCheck className="h-3.5 w-3.5 text-zinc-400" />
+                  Audit Gate Rejected • Deliverable Hidden & MON Safe
+                </div>
+              </div>
+            ) : pipelineData?.taskOutputLocked ? (
               <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 text-center space-y-3">
                 <Lock className="mx-auto h-8 w-8 text-zinc-400 animate-pulse" />
                 <h4 className="font-bold text-sm text-white">Task Output Encrypted & Locked in Escrow</h4>
