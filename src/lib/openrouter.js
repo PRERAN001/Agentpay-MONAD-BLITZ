@@ -11,6 +11,7 @@ export async function searchMatchNegotiateWithAI({
   userApiKey = '',
   targetPriceMon = '0.5',
   signerAddress = '',
+  allowAllAgents = false,
 }) {
   const activeAgents = agents.filter((a) => a.active)
   let agentPool = activeAgents.length > 0 ? activeAgents : agents
@@ -19,8 +20,8 @@ export async function searchMatchNegotiateWithAI({
     throw new Error('No registered agents found on Monad network to match.')
   }
 
-  // Prioritize agents owned by connected wallet address
-  if (signerAddress) {
+  // Prioritize agents owned by connected wallet address only for single-task runs
+  if (signerAddress && !allowAllAgents) {
     const owned = agentPool.filter((a) => a.owner?.toLowerCase() === signerAddress.toLowerCase())
     if (owned.length > 0) {
       agentPool = owned

@@ -66,6 +66,7 @@ export async function decomposeAndExecuteTask({
         userApiKey: key,
         targetPriceMon: budgetPerTask,
         signerAddress,
+        allowAllAgents: true,
       })
     } catch (err) {
       console.warn(`Subtask "${subtask.title}" failed to execute:`, err)

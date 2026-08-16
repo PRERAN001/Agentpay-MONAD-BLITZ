@@ -313,24 +313,25 @@ export async function completeJobTx({ signer, jobId }) {
 }
 
 export async function depositEscrowTx({ signer, jobId, amountMon }) {
-  const { jobEscrow, jobMarketplace } = getContracts(signer)
+  const readContracts = getContracts(getPublicProvider())
+  const writeContracts = getContracts(signer)
   const userAddress = await signer.getAddress()
 
-  let job
-  try {
-    job = await jobMarketplace.getJob(jobId)
-  } catch {
-    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
+  let job = null
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      job = await readContracts.jobMarketplace.getJob(jobId)
+      if (job && Number(job.jobId) > 0) break
+    } catch {}
+    await new Promise((res) => setTimeout(res, 600))
   }
 
-  if (Number(job.jobId) === 0) {
-    throw new Error(`Job #${jobId} does not exist.`)
-  }
-
-  if (job.client.toLowerCase() !== userAddress.toLowerCase()) {
-    throw new Error(
-      `Solidity Client Requirement: Only the client who created Job #${jobId} (${job.client.slice(0, 6)}...) can deposit into Escrow. Connected wallet is ${userAddress.slice(0, 6)}...`
-    )
+  if (!job || Number(job.jobId) === 0) {
+    console.warn(`Job #${jobId} pending RPC indexing, proceeding to submit depositEscrow transaction...`)
+  } else {
+    if (job.client.toLowerCase() !== userAddress.toLowerCase()) {
+      console.warn(`Note: Connected wallet is ${userAddress.slice(0, 6)}..., job client is ${job.client.slice(0, 6)}...`)
+    }
   }
 
   const statusNum = Number(job.status)

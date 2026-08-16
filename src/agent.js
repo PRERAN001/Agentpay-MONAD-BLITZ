@@ -89,7 +89,7 @@ export function createAgentRuntime({ env = process.env } = {}) {
         throw new Error("Job description is required.");
       }
 
-      // Don't hire yourself
+    
       if (Number(targetAgentId) === this.agentId) {
         throw new Error("An agent cannot hire itself.");
       }
@@ -149,9 +149,7 @@ export function createAgentRuntime({ env = process.env } = {}) {
 
       console.log("Job created:", createReceipt.hash);
 
-      // --------------------------------
-      // 5. Get newly created job ID
-      // --------------------------------
+      
 
       const jobCount = await blockchain.getJobCount();
 
@@ -159,9 +157,7 @@ export function createAgentRuntime({ env = process.env } = {}) {
 
       console.log(`Created Job #${jobId}`);
 
-      // --------------------------------
-      // 6. Deposit reward into escrow
-      // --------------------------------
+      
 
       console.log(`Depositing ${reward.toString()} wei...`);
 
@@ -171,9 +167,6 @@ export function createAgentRuntime({ env = process.env } = {}) {
 
       console.log("Escrow funded:", depositReceipt.hash);
 
-      // --------------------------------
-      // 7. Return hiring result
-      // --------------------------------
 
       return {
         jobId,

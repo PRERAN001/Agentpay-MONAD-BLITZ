@@ -279,6 +279,9 @@ export async function runAutonomousPipeline({
   // ----------------------------------------------------
   // Stage 4: Deposit Reward in JobEscrow
   // ----------------------------------------------------
+  updateStage(STAGES.DEPOSIT_ESCROW, `Job #${newJobId} verified on-chain! Preparing Escrow Deposit of ${negotiatedPriceMon} MON...`)
+  await new Promise((res) => setTimeout(res, 1200))
+
   updateStage(STAGES.DEPOSIT_ESCROW, `Depositing ${negotiatedPriceMon} MON into JobEscrow for Job #${newJobId}... Please confirm in MetaMask popup!`)
   let txHashDeposit = ''
 
