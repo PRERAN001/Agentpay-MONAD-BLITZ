@@ -318,20 +318,30 @@ export async function runAutonomousPipeline({
   }
 
   // ----------------------------------------------------
-  // Stage 7: Release Escrow Payment
+  // Stage 7: Release Escrow Payment (Gated by Verification Audit)
   // ----------------------------------------------------
-  updateStage(STAGES.RELEASE_ESCROW, `Releasing ${negotiatedPriceMon} MON from JobEscrow to Agent Owner (${matchedAgent.owner.slice(0, 6)}...)... Please confirm in MetaMask popup!`)
+  const isApproved = payoutDecision?.approved !== false && (verification?.score === undefined || verification.score >= 70)
+
   let txHashRelease = ''
 
-  try {
-    const releaseTx = await releaseEscrowTx({
-      signer,
-      jobId: newJobId,
+  if (!isApproved) {
+    updateStage(STAGES.RELEASE_ESCROW, `⚠️ Verification Auditor Gate REJECTED Payout (Score: ${verification.score || 70}/100 - NEEDS REVISION). Escrow funds held on-chain!`, {
+      releaseTxHash: 'REJECTED_BY_AUDITOR',
+      taskOutputLocked: false,
     })
-    const releaseReceipt = await releaseTx.wait()
-    txHashRelease = releaseReceipt.hash || releaseTx.hash
-  } catch (err) {
-    throw new Error(`Release Payment failed on-chain: ${err.shortMessage || err.message}`)
+  } else {
+    updateStage(STAGES.RELEASE_ESCROW, `Releasing ${negotiatedPriceMon} MON from JobEscrow to Agent Owner (${matchedAgent.owner.slice(0, 6)}...)... Please confirm in MetaMask popup!`)
+
+    try {
+      const releaseTx = await releaseEscrowTx({
+        signer,
+        jobId: newJobId,
+      })
+      const releaseReceipt = await releaseTx.wait()
+      txHashRelease = releaseReceipt.hash || releaseTx.hash
+    } catch (err) {
+      throw new Error(`Release Payment failed on-chain: ${err.shortMessage || err.message}`)
+    }
   }
 
   // ----------------------------------------------------

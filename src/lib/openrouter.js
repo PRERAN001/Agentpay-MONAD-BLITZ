@@ -61,8 +61,6 @@ export async function searchMatchNegotiateWithAI({
 
 const FALLBACK_MODELS = [
   'google/gemini-2.5-flash',
-  'meta-llama/llama-3.3-70b-instruct',
-  'deepseek/deepseek-r1-distill-llama-70b',
   'openai/gpt-4o-mini',
 ]
 
@@ -82,7 +80,7 @@ async function runAiNegotiation(prompt, agentPool, targetPriceMon, userApiKey) {
   for (const model of FALLBACK_MODELS) {
     try {
       const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 10000)
+      const timer = setTimeout(() => controller.abort(), 3500)
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',

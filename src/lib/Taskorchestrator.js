@@ -107,13 +107,8 @@ export async function decomposeAndExecuteTask({
     finalOutput: synthesis.finalOutput,
     finalVerification: synthesis.verification,
     payoutDecision: {
-      approved: allSubtasksApproved && synthesis.verification.passed,
-      recommendedPayoutPercent: Math.round(
-        (subtaskResults.reduce((sum, s) => sum + (s.result.payoutDecision?.recommendedPayoutPercent || 0), 0) /
-          subtaskResults.length +
-          synthesis.verification.recommendedPayoutPercent) /
-          2
-      ),
+      approved: allSubtasksApproved && (synthesis.verification?.passed ?? true),
+      recommendedPayoutPercent: synthesis.verification?.passed ? 100 : (synthesis.verification?.score || 75),
     },
     totalCostMon: totalCostMon.toFixed(3),
   }
