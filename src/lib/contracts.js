@@ -180,22 +180,123 @@ export async function createJobTx({ signer, agentId, description, rewardMon }) {
 }
 
 export async function acceptJobTx({ signer, jobId }) {
-  const { jobMarketplace } = getContracts(signer)
+  const { jobMarketplace, agentRegistry } = getContracts(signer)
+  const userAddress = await signer.getAddress()
+  
+  let job
+  try {
+    job = await jobMarketplace.getJob(jobId)
+  } catch {
+    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
+  }
+
+  if (Number(job.jobId) === 0) {
+    throw new Error(`Job #${jobId} does not exist.`)
+  }
+
+  const statusNum = Number(job.status)
+  if (statusNum !== 0) {
+    throw new Error(`Job #${jobId} cannot be accepted because its status is ${JOB_STATUS[statusNum] || statusNum} (must be OPEN).`)
+  }
+
+  const agent = await agentRegistry.getAgent(job.agentId)
+  if (agent.owner.toLowerCase() !== userAddress.toLowerCase()) {
+    throw new Error(
+      `Solidity Ownership Requirement: Only the owner of Agent #${job.agentId} (${agent.owner.slice(0, 6)}...) can call acceptJob on Job #${jobId}. Connected wallet is ${userAddress.slice(0, 6)}...`
+    )
+  }
+
   return jobMarketplace.acceptJob(jobId)
 }
 
 export async function completeJobTx({ signer, jobId }) {
   const { jobMarketplace } = getContracts(signer)
+  const userAddress = await signer.getAddress()
+
+  let job
+  try {
+    job = await jobMarketplace.getJob(jobId)
+  } catch {
+    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
+  }
+
+  if (Number(job.jobId) === 0) {
+    throw new Error(`Job #${jobId} does not exist.`)
+  }
+
+  const statusNum = Number(job.status)
+  if (statusNum !== 1) {
+    throw new Error(`Job #${jobId} cannot be completed because its status is ${JOB_STATUS[statusNum] || statusNum} (must be ACCEPTED first).`)
+  }
+
+  if (job.agentWorker.toLowerCase() !== userAddress.toLowerCase()) {
+    throw new Error(
+      `Solidity Worker Requirement: Only the assigned worker (${job.agentWorker.slice(0, 6)}...) can complete Job #${jobId}. Connected wallet is ${userAddress.slice(0, 6)}...`
+    )
+  }
+
   return jobMarketplace.completeJob(jobId)
 }
 
 export async function depositEscrowTx({ signer, jobId, amountMon }) {
-  const { jobEscrow } = getContracts(signer)
+  const { jobEscrow, jobMarketplace } = getContracts(signer)
+  const userAddress = await signer.getAddress()
+
+  let job
+  try {
+    job = await jobMarketplace.getJob(jobId)
+  } catch {
+    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
+  }
+
+  if (Number(job.jobId) === 0) {
+    throw new Error(`Job #${jobId} does not exist.`)
+  }
+
+  if (job.client.toLowerCase() !== userAddress.toLowerCase()) {
+    throw new Error(
+      `Solidity Client Requirement: Only the client who created Job #${jobId} (${job.client.slice(0, 6)}...) can deposit into Escrow. Connected wallet is ${userAddress.slice(0, 6)}...`
+    )
+  }
+
+  const statusNum = Number(job.status)
+  if (statusNum !== 0) {
+    throw new Error(`Job #${jobId} is not OPEN (current status: ${JOB_STATUS[statusNum] || statusNum}).`)
+  }
+
   return jobEscrow.deposit(jobId, { value: ethers.parseEther(amountMon) })
 }
 
 export async function releaseEscrowTx({ signer, jobId }) {
-  const { jobEscrow } = getContracts(signer)
+  const { jobEscrow, jobMarketplace } = getContracts(signer)
+
+  let job
+  try {
+    job = await jobMarketplace.getJob(jobId)
+  } catch {
+    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
+  }
+
+  if (Number(job.jobId) === 0) {
+    throw new Error(`Job #${jobId} does not exist.`)
+  }
+
+  const statusNum = Number(job.status)
+  if (statusNum !== 2) {
+    throw new Error(`Job #${jobId} must be COMPLETED before funds can be released (current status: ${JOB_STATUS[statusNum] || statusNum}).`)
+  }
+
+  let bal = 0n
+  try {
+    bal = await jobEscrow.escrowBalance(jobId)
+  } catch {
+    bal = 0n
+  }
+
+  if (bal === 0n) {
+    throw new Error(`Job #${jobId} has no funds in escrow (balance is 0 MON).`)
+  }
+
   return jobEscrow.release(jobId)
 }
 

@@ -1,3 +1,5 @@
+import { ClipboardList } from 'lucide-react'
+
 function statusBadge(status) {
   switch (status) {
     case 'OPEN':
@@ -15,7 +17,7 @@ export default function JobTable({ jobs }) {
   if (!jobs.length) {
     return (
       <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-10 text-center">
-        <span className="text-2xl mb-2">📋</span>
+        <ClipboardList className="h-8 w-8 text-slate-400 mb-2" />
         <p className="text-xs font-semibold text-slate-700">No on-chain jobs found</p>
         <p className="mt-1 text-[11px] text-slate-400">Created jobs will appear live here.</p>
       </div>
