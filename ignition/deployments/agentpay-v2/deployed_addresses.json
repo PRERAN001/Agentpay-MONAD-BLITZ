@@ -1,0 +1,6 @@
+{
+  "AgentPayModule#AgentRegistry": "0x7377C647026F9d845394e9900F3bc5E7ECc24490",
+  "AgentPayModule#ReputationManager": "0x9FaFAd24E70a3d5adaca46113E25877654c110a4",
+  "AgentPayModule#JobMarketplace": "0x7173f0A8b53b61F2ea074B096bb817E5dac0dcd1",
+  "AgentPayModule#JobEscrow": "0x80E68917568669Fc5d17CaA785a2Feb6d5134e8d"
+}

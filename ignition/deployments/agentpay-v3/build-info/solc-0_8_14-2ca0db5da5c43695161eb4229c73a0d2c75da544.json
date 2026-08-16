@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_14-2ca0db5da5c43695161eb4229c73a0d2c75da544",
+  "solcVersion": "0.8.14",
+  "solcLongVersion": "0.8.14+commit.80d49f37",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.13.0"
+  },
+  "userSourceNameMap": {
+    "contracts/AgentRegistry.sol": "project/contracts/AgentRegistry.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "london",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/AgentRegistry.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.14;\r\n\r\ncontract AgentRegistry {\r\n\r\n    struct Agent {\r\n        address owner;\r\n        string name;\r\n        string metadataURI;\r\n        uint256 price;\r\n        uint256 reputation;\r\n        bool active;\r\n    }\r\n\r\n    uint256 public agentCount;\r\n\r\n    mapping(uint256 => Agent) public agents;\r\n\r\n    event AgentRegistered(\r\n        uint256 indexed agentId,\r\n        address indexed owner,\r\n        string name,\r\n        uint256 price\r\n    );\r\n\r\n    event AgentUpdated(\r\n        uint256 indexed agentId,\r\n        string name,\r\n        uint256 price,\r\n        bool active\r\n    );\r\n\r\n    function registerAgent(\r\n        string calldata name,\r\n        string calldata metadataURI,\r\n        uint256 price\r\n    ) external returns (uint256) {\r\n\r\n        agentCount++;\r\n\r\n        agents[agentCount] = Agent({\r\n            owner: msg.sender,\r\n            name: name,\r\n            metadataURI: metadataURI,\r\n            price: price,\r\n            reputation: 0,\r\n            active: true\r\n        });\r\n\r\n        emit AgentRegistered(\r\n            agentCount,\r\n            msg.sender,\r\n            name,\r\n            price\r\n        );\r\n\r\n        return agentCount;\r\n    }\r\n\r\n    function updateAgent(\r\n        uint256 agentId,\r\n        string calldata name,\r\n        string calldata metadataURI,\r\n        uint256 price,\r\n        bool active\r\n    ) external {\r\n\r\n        require(\r\n            agents[agentId].owner == msg.sender,\r\n            \"Not agent owner\"\r\n        );\r\n\r\n        agents[agentId].name = name;\r\n        agents[agentId].metadataURI = metadataURI;\r\n        agents[agentId].price = price;\r\n        agents[agentId].active = active;\r\n\r\n        emit AgentUpdated(\r\n            agentId,\r\n            name,\r\n            price,\r\n            active\r\n        );\r\n    }\r\n\r\n    function getAgent(\r\n        uint256 agentId\r\n    ) external view returns (Agent memory) {\r\n\r\n        require(\r\n            agentId > 0 && agentId <= agentCount,\r\n            \"Agent does not exist\"\r\n        );\r\n\r\n        return agents[agentId];\r\n    }\r\n}"
+      }
+    }
+  }
+}

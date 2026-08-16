@@ -4,16 +4,11 @@ import AgentRegistryArtifact from '../../abis/AgentRegistry.json'
 import JobMarketplaceArtifact from '../../abis/JobMarketplace.json'
 import JobEscrowArtifact from '../../abis/JobEscrow.json'
 import ReputationManagerArtifact from '../../abis/ReputationManager.json'
-import deployedAddresses from '../../ignition/deployments/chain-10143/deployed_addresses.json'
+import getDeployedContractAddresses from '../contract-config'
 
 export const MONAD_RPC_URL = 'https://testnet-rpc.monad.xyz/'
 
-export const CONTRACT_ADDRESSES = {
-  agentRegistry: deployedAddresses['AgentPayModule#AgentRegistry'],
-  jobMarketplace: deployedAddresses['AgentPayModule#JobMarketplace'],
-  jobEscrow: deployedAddresses['AgentPayModule#JobEscrow'],
-  reputationManager: deployedAddresses['AgentPayModule#ReputationManager'],
-}
+export const CONTRACT_ADDRESSES = getDeployedContractAddresses()
 
 export const ABIS = {
   agentRegistry: AgentRegistryArtifact.abi,
@@ -70,48 +65,66 @@ export async function connectWallet() {
   }
 }
 
+async function retryOn429(fn, maxRetries = 3, delayMs = 400) {
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await fn()
+    } catch (err) {
+      const is429 = err?.message?.includes('429') || err?.code === -32005 || err?.shortMessage?.includes('rate limit')
+      if (is429 && attempt < maxRetries) {
+        await new Promise((res) => setTimeout(res, delayMs * attempt))
+      } else {
+        throw err
+      }
+    }
+  }
+}
+
 export async function readDashboardState({ agentId, walletAddress }) {
   const provider = getPublicProvider()
   const { agentRegistry, jobMarketplace, jobEscrow, reputationManager } = getContracts(provider)
 
-  const network = await provider.getNetwork()
-  const walletBalance = walletAddress ? await provider.getBalance(walletAddress) : 0n
-  const agentCount = Number(await agentRegistry.agentCount())
-  const jobCount = Number(await jobMarketplace.jobCount())
+  const [network, walletBalance, agentCountBig, jobCountBig] = await Promise.all([
+    retryOn429(() => provider.getNetwork()),
+    walletAddress ? retryOn429(() => provider.getBalance(walletAddress)) : Promise.resolve(0n),
+    retryOn429(() => agentRegistry.agentCount()),
+    retryOn429(() => jobMarketplace.jobCount()),
+  ])
 
-  // Fetch all registered agents
-  const agents = []
-  for (let i = 1; i <= agentCount; i += 1) {
-    try {
-      const ag = await agentRegistry.getAgent(i)
-      let repScore = 0
-      let completedJobs = 0
-      let failedJobs = 0
+  const agentCount = Number(agentCountBig)
+  const jobCount = Number(jobCountBig)
+
+  // Fetch all registered agents in parallel batches
+  const agentIndices = Array.from({ length: agentCount }, (_, i) => i + 1)
+  const agents = await Promise.all(
+    agentIndices.map(async (i) => {
       try {
-        const repTuple = await reputationManager.getReputation(i)
-        repScore = Number(repTuple[0])
-        completedJobs = Number(repTuple[1])
-        failedJobs = Number(repTuple[2])
-      } catch {
-        repScore = Number(ag.reputation)
-      }
+        const [ag, repTuple] = await Promise.all([
+          retryOn429(() => agentRegistry.getAgent(i)),
+          retryOn429(() => reputationManager.getReputation(i)).catch(() => null),
+        ])
 
-      agents.push({
-        id: i,
-        owner: ag.owner,
-        name: ag.name,
-        metadataURI: ag.metadataURI,
-        priceMon: ethers.formatEther(ag.price),
-        reputationOnRegistry: Number(ag.reputation),
-        reputationScore: repScore,
-        completedJobs,
-        failedJobs,
-        active: ag.active,
-      })
-    } catch (err) {
-      console.error(`Error reading agent ${i}:`, err)
-    }
-  }
+        const repScore = repTuple ? Number(repTuple[0]) : Number(ag.reputation)
+        const completedJobs = repTuple ? Number(repTuple[1]) : 0
+        const failedJobs = repTuple ? Number(repTuple[2]) : 0
+
+        return {
+          id: i,
+          owner: ag.owner,
+          name: ag.name,
+          metadataURI: ag.metadataURI,
+          priceMon: ethers.formatEther(ag.price),
+          reputationOnRegistry: Number(ag.reputation),
+          reputationScore: repScore,
+          completedJobs,
+          failedJobs,
+          active: ag.active,
+        }
+      } catch (err) {
+        return null
+      }
+    })
+  ).then((list) => list.filter(Boolean))
 
   let selectedAgent = null
   let selectedReputation = { score: 0, completedJobs: 0, failedJobs: 0 }
@@ -129,27 +142,31 @@ export async function readDashboardState({ agentId, walletAddress }) {
     }
   }
 
-  const jobs = []
-  for (let i = 1; i <= jobCount; i += 1) {
-    const job = await jobMarketplace.getJob(i)
-    let escrowBal = 0n
-    try {
-      escrowBal = await jobEscrow.escrowBalance(i)
-    } catch {
-      escrowBal = 0n
-    }
+  // Fetch all jobs in parallel batches
+  const jobIndices = Array.from({ length: jobCount }, (_, i) => i + 1)
+  const jobs = await Promise.all(
+    jobIndices.map(async (i) => {
+      try {
+        const [job, escrowBal] = await Promise.all([
+          retryOn429(() => jobMarketplace.getJob(i)),
+          retryOn429(() => jobEscrow.escrowBalance(i)).catch(() => 0n),
+        ])
 
-    jobs.push({
-      id: Number(job.jobId),
-      client: job.client,
-      agentId: Number(job.agentId),
-      description: job.description,
-      rewardMon: ethers.formatEther(job.reward),
-      escrowBalanceMon: ethers.formatEther(escrowBal),
-      worker: job.agentWorker,
-      status: JOB_STATUS[Number(job.status)] ?? `UNKNOWN_${Number(job.status)}`,
+        return {
+          id: Number(job.jobId),
+          client: job.client,
+          agentId: Number(job.agentId),
+          description: job.description,
+          rewardMon: ethers.formatEther(job.reward),
+          escrowBalanceMon: ethers.formatEther(escrowBal),
+          worker: job.agentWorker,
+          status: JOB_STATUS[Number(job.status)] ?? `UNKNOWN_${Number(job.status)}`,
+        }
+      } catch (err) {
+        return null
+      }
     })
-  }
+  ).then((list) => list.filter(Boolean))
 
   return {
     networkName: `${network.name} • chain ${network.chainId.toString()}`,
@@ -163,20 +180,51 @@ export async function readDashboardState({ agentId, walletAddress }) {
   }
 }
 
+export function parseMonToWei(value) {
+  if (value === null || value === undefined) return ethers.parseEther('0.5')
+  const str = String(value)
+  const match = str.match(/([0-9.]+)/)
+  const cleanNumStr = match ? match[1] : '0.5'
+  return ethers.parseEther(cleanNumStr)
+}
+
 export async function registerAgentTx({ signer, name, metadataURI, priceMon }) {
   const { agentRegistry } = getContracts(signer)
-  const tx = await agentRegistry.registerAgent(name, metadataURI, ethers.parseEther(priceMon))
-  return tx
+  try {
+    return await agentRegistry.registerAgent(name, metadataURI, parseMonToWei(priceMon), {
+      gasLimit: 500000n,
+    })
+  } catch {
+    return await agentRegistry.registerAgent(name, metadataURI, parseMonToWei(priceMon))
+  }
 }
 
 export async function updateAgentTx({ signer, agentId, name, metadataURI, priceMon, active }) {
   const { agentRegistry } = getContracts(signer)
-  return agentRegistry.updateAgent(agentId, name, metadataURI, ethers.parseEther(priceMon), active)
+  return agentRegistry.updateAgent(agentId, name, metadataURI, parseMonToWei(priceMon), active)
 }
 
 export async function createJobTx({ signer, agentId, description, rewardMon }) {
-  const { jobMarketplace } = getContracts(signer)
-  return jobMarketplace.createJob(agentId, description, ethers.parseEther(rewardMon))
+  const { jobMarketplace, agentRegistry } = getContracts(signer)
+  
+  let agent
+  try {
+    agent = await agentRegistry.getAgent(agentId)
+  } catch (err) {
+    throw new Error(`Agent #${agentId} does not exist on AgentRegistry: ${err.message}`)
+  }
+
+  if (!agent.active) {
+    throw new Error(`Agent #${agentId} (${agent.name}) is INACTIVE on-chain and cannot accept new jobs.`)
+  }
+
+  try {
+    return await jobMarketplace.createJob(agentId, description, parseMonToWei(rewardMon), {
+      gasLimit: 500000n,
+    })
+  } catch (txErr) {
+    return await jobMarketplace.createJob(agentId, description, parseMonToWei(rewardMon))
+  }
 }
 
 export async function acceptJobTx({ signer, jobId }) {
@@ -206,7 +254,11 @@ export async function acceptJobTx({ signer, jobId }) {
     )
   }
 
-  return jobMarketplace.acceptJob(jobId)
+  try {
+    return await jobMarketplace.acceptJob(jobId, { gasLimit: 500000n })
+  } catch {
+    return await jobMarketplace.acceptJob(jobId)
+  }
 }
 
 export async function completeJobTx({ signer, jobId }) {
@@ -235,7 +287,11 @@ export async function completeJobTx({ signer, jobId }) {
     )
   }
 
-  return jobMarketplace.completeJob(jobId)
+  try {
+    return await jobMarketplace.completeJob(jobId, { gasLimit: 500000n })
+  } catch {
+    return await jobMarketplace.completeJob(jobId)
+  }
 }
 
 export async function depositEscrowTx({ signer, jobId, amountMon }) {
@@ -264,7 +320,11 @@ export async function depositEscrowTx({ signer, jobId, amountMon }) {
     throw new Error(`Job #${jobId} is not OPEN (current status: ${JOB_STATUS[statusNum] || statusNum}).`)
   }
 
-  return jobEscrow.deposit(jobId, { value: ethers.parseEther(amountMon) })
+  try {
+    return await jobEscrow.deposit(jobId, { value: parseMonToWei(amountMon), gasLimit: 500000n })
+  } catch {
+    return await jobEscrow.deposit(jobId, { value: parseMonToWei(amountMon) })
+  }
 }
 
 export async function releaseEscrowTx({ signer, jobId }) {
@@ -297,22 +357,47 @@ export async function releaseEscrowTx({ signer, jobId }) {
     throw new Error(`Job #${jobId} has no funds in escrow (balance is 0 MON).`)
   }
 
-  return jobEscrow.release(jobId)
+  try {
+    return await jobEscrow.release(jobId, { gasLimit: 500000n })
+  } catch {
+    return await jobEscrow.release(jobId)
+  }
 }
 
 export async function hireAgentTx({ signer, agentId, description, rewardMon }) {
-  const { jobMarketplace, jobEscrow } = getContracts(signer)
-  const rewardWei = ethers.parseEther(rewardMon)
+  const { jobMarketplace, jobEscrow, agentRegistry } = getContracts(signer)
+  const rewardWei = parseMonToWei(rewardMon)
   
+  let agent
+  try {
+    agent = await agentRegistry.getAgent(agentId)
+  } catch (err) {
+    throw new Error(`Agent #${agentId} does not exist on AgentRegistry: ${err.message}`)
+  }
+
+  if (!agent.active) {
+    throw new Error(`Agent #${agentId} (${agent.name}) is INACTIVE on-chain and cannot accept new jobs.`)
+  }
+
   // Step 1: Create Job
-  const createTx = await jobMarketplace.createJob(agentId, description, rewardWei)
-  const receipt = await createTx.wait()
+  let createTx
+  try {
+    createTx = await jobMarketplace.createJob(agentId, description, rewardWei, { gasLimit: 500000n })
+  } catch {
+    createTx = await jobMarketplace.createJob(agentId, description, rewardWei)
+  }
+  await createTx.wait()
   
   // Get current jobCount as newly created jobId
   const newJobId = await jobMarketplace.jobCount()
   
   // Step 2: Deposit into Escrow
-  const depositTx = await jobEscrow.deposit(newJobId, { value: rewardWei })
+  let depositTx
+  try {
+    depositTx = await jobEscrow.deposit(newJobId, { value: rewardWei, gasLimit: 500000n })
+  } catch {
+    depositTx = await jobEscrow.deposit(newJobId, { value: rewardWei })
+  }
   await depositTx.wait()
   
   return {

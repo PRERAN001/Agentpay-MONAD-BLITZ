@@ -3,23 +3,23 @@ import { ClipboardList } from 'lucide-react'
 function statusBadge(status) {
   switch (status) {
     case 'OPEN':
-      return 'border-emerald-200/80 bg-emerald-50 text-emerald-700'
+      return 'border-zinc-600 bg-zinc-900 text-white'
     case 'ACCEPTED':
-      return 'border-amber-200/80 bg-amber-50 text-amber-700'
+      return 'border-zinc-700 bg-zinc-900/80 text-zinc-300'
     case 'COMPLETED':
-      return 'border-sky-200/80 bg-sky-50 text-sky-700'
+      return 'border-zinc-800 bg-zinc-950 text-zinc-400'
     default:
-      return 'border-slate-200 bg-slate-50 text-slate-600'
+      return 'border-zinc-800 bg-zinc-900 text-zinc-500'
   }
 }
 
 export default function JobTable({ jobs }) {
-  if (!jobs.length) {
+  if (!jobs || !jobs.length) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-10 text-center">
-        <ClipboardList className="h-8 w-8 text-slate-400 mb-2" />
-        <p className="text-xs font-semibold text-slate-700">No on-chain jobs found</p>
-        <p className="mt-1 text-[11px] text-slate-400">Created jobs will appear live here.</p>
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-800 bg-zinc-950/50 p-10 text-center">
+        <ClipboardList className="h-8 w-8 text-zinc-600 mb-2" />
+        <p className="text-xs font-semibold text-zinc-300">No on-chain jobs found</p>
+        <p className="mt-1 text-[11px] text-zinc-500">Created jobs will appear live here.</p>
       </div>
     )
   }
@@ -29,20 +29,20 @@ export default function JobTable({ jobs }) {
       {jobs.map((job) => (
         <div
           key={job.id}
-          className="group relative rounded-2xl border border-slate-200/90 bg-white p-4.5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md"
+          className="group relative rounded-2xl border border-zinc-800 bg-zinc-950 p-4.5 shadow-md transition-all hover:border-zinc-700 hover:bg-zinc-900/30"
         >
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <span className="inline-flex items-center gap-1.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-slate-300 group-hover:bg-indigo-500 transition-colors" />
+              <span className="inline-flex items-center gap-1.5 font-['JetBrains_Mono',monospace] text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-zinc-600 group-hover:bg-white transition-colors" />
                 Job #{job.id}
               </span>
-              <p className="font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold text-slate-900">
+              <p className="font-['Plus_Jakarta_Sans',sans-serif] text-sm font-bold text-white">
                 {job.description || 'No description provided'}
               </p>
             </div>
             <span
-              className={`inline-flex self-start sm:self-center items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide shadow-2xs ${statusBadge(job.status)}`}
+              className={`inline-flex self-start sm:self-center items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold font-mono tracking-wide shadow-2xs ${statusBadge(job.status)}`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
               {job.status}
@@ -72,14 +72,14 @@ export default function JobTable({ jobs }) {
 
 function InfoPill({ label, value, mono = false, highlight = false }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-[#F9FAFB] px-3 py-2 transition-colors group-hover:bg-slate-50">
-      <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 px-3 py-2 transition-colors group-hover:bg-zinc-900">
+      <span className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500 font-mono">
         {label}
       </span>
       <span
         className={`mt-0.5 block truncate text-xs font-semibold ${
           mono ? "font-['JetBrains_Mono',monospace]" : ''
-        } ${highlight ? 'text-indigo-600 font-bold' : 'text-slate-800'}`}
+        } ${highlight ? 'text-white font-bold font-mono' : 'text-zinc-300'}`}
       >
         {value}
       </span>

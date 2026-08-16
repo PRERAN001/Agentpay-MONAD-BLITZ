@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_14-6109e961c777bc005653d6a851eb2c7a255abe1e",
+  "solcVersion": "0.8.14",
+  "solcLongVersion": "0.8.14+commit.80d49f37",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.13.0"
+  },
+  "userSourceNameMap": {
+    "contracts/JobMarketplace.sol": "project/contracts/JobMarketplace.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "london",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/JobMarketplace.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.14;\r\n\r\ninterface IAgentRegistry {\r\n    struct Agent {\r\n        address owner;\r\n        string name;\r\n        string metadataURI;\r\n        uint256 price;\r\n        uint256 reputation;\r\n        bool active;\r\n    }\r\n\r\n    function getAgent(uint256 agentId)\r\n        external\r\n        view\r\n        returns (Agent memory);\r\n}\r\n\r\ninterface IReputationManager {\r\n    function recordSuccess(uint256 agentId) external;\r\n    function recordFailure(uint256 agentId) external;\r\n}\r\n\r\ncontract JobMarketplace {\r\n\r\n    enum JobStatus {\r\n        OPEN,\r\n        ACCEPTED,\r\n        COMPLETED\r\n    }\r\n\r\n    struct Job {\r\n        uint256 jobId;\r\n        address client;\r\n        uint256 agentId;\r\n        string description;\r\n        uint256 reward;\r\n        address agentWorker;\r\n        JobStatus status;\r\n    }\r\n\r\n    IAgentRegistry public registry;\r\n    IReputationManager public reputationManager;\r\n\r\n    uint256 public jobCount;\r\n\r\n    mapping(uint256 => Job) public jobs;\r\n\r\n    event JobCreated(\r\n        uint256 indexed jobId,\r\n        address indexed client,\r\n        uint256 indexed agentId,\r\n        string description,\r\n        uint256 reward\r\n    );\r\n\r\n    event JobAccepted(\r\n        uint256 indexed jobId,\r\n        address indexed agent\r\n    );\r\n\r\n    event JobCompleted(\r\n        uint256 indexed jobId\r\n    );\r\n\r\n    constructor(\r\n        address registryAddress,\r\n        address reputationManagerAddress\r\n    ) {\r\n        registry = IAgentRegistry(registryAddress);\r\n        reputationManager =\r\n            IReputationManager(reputationManagerAddress);\r\n    }\r\n\r\n    function createJob(\r\n        uint256 agentId,\r\n        string calldata description,\r\n        uint256 reward\r\n    ) external returns (uint256) {\r\n\r\n        IAgentRegistry.Agent memory agent =\r\n            registry.getAgent(agentId);\r\n\r\n        require(\r\n            agent.active,\r\n            \"Agent is not active\"\r\n        );\r\n\r\n        jobCount++;\r\n\r\n        jobs[jobCount] = Job({\r\n            jobId: jobCount,\r\n            client: msg.sender,\r\n            agentId: agentId,\r\n            description: description,\r\n            reward: reward,\r\n            agentWorker: address(0),\r\n            status: JobStatus.OPEN\r\n        });\r\n\r\n        emit JobCreated(\r\n            jobCount,\r\n            msg.sender,\r\n            agentId,\r\n            description,\r\n            reward\r\n        );\r\n\r\n        return jobCount;\r\n    }\r\n\r\n    function acceptJob(uint256 jobId) external {\r\n\r\n        Job storage job = jobs[jobId];\r\n\r\n        require(\r\n            job.jobId != 0,\r\n            \"Job does not exist\"\r\n        );\r\n\r\n        require(\r\n            job.status == JobStatus.OPEN,\r\n            \"Job is not open\"\r\n        );\r\n\r\n        IAgentRegistry.Agent memory agent =\r\n            registry.getAgent(job.agentId);\r\n\r\n        require(\r\n            agent.owner == msg.sender,\r\n            \"Not agent owner\"\r\n        );\r\n\r\n        job.agentWorker = msg.sender;\r\n        job.status = JobStatus.ACCEPTED;\r\n\r\n        emit JobAccepted(\r\n            jobId,\r\n            msg.sender\r\n        );\r\n    }\r\n\r\n    function completeJob(uint256 jobId) external {\r\n\r\n        Job storage job = jobs[jobId];\r\n\r\n        require(\r\n            job.jobId != 0,\r\n            \"Job does not exist\"\r\n        );\r\n\r\n        require(\r\n            job.status == JobStatus.ACCEPTED,\r\n            \"Job not accepted\"\r\n        );\r\n\r\n        require(\r\n            job.agentWorker == msg.sender,\r\n            \"Not assigned agent\"\r\n        );\r\n\r\n        job.status = JobStatus.COMPLETED;\r\n\r\n        // Award reputation for successful completion.\r\n        reputationManager.recordSuccess(\r\n            job.agentId\r\n        );\r\n\r\n        emit JobCompleted(\r\n            jobId\r\n        );\r\n    }\r\n\r\n    function getJob(uint256 jobId)\r\n        external\r\n        view\r\n        returns (Job memory)\r\n    {\r\n        require(\r\n            jobId > 0 && jobId <= jobCount,\r\n            \"Job does not exist\"\r\n        );\r\n\r\n        return jobs[jobId];\r\n    }\r\n}"
+      }
+    }
+  }
+}

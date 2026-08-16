@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_14-a9e0173383e4341e72b2019e9f506ed675f4e616",
+  "solcVersion": "0.8.14",
+  "solcLongVersion": "0.8.14+commit.80d49f37",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.13.0"
+  },
+  "userSourceNameMap": {
+    "contracts/ReputationManager.sol": "project/contracts/ReputationManager.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "london",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/ReputationManager.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.14;\r\n\r\ncontract ReputationManager {\r\n\r\n    struct Reputation {\r\n        uint256 score;\r\n        uint256 completedJobs;\r\n        uint256 failedJobs;\r\n    }\r\n\r\n    // Agent ID => reputation information\r\n    mapping(uint256 => Reputation) public reputations;\r\n\r\n    // Address of the JobMarketplace allowed to update reputation\r\n    address public marketplace;\r\n\r\n    // Person who deployed this contract\r\n    address public owner;\r\n\r\n    event MarketplaceUpdated(\r\n        address indexed marketplace\r\n    );\r\n\r\n    event ReputationUpdated(\r\n        uint256 indexed agentId,\r\n        uint256 newScore,\r\n        uint256 completedJobs,\r\n        uint256 failedJobs\r\n    );\r\n\r\n    constructor() {\r\n        owner = msg.sender;\r\n    }\r\n\r\n    // --------------------------------------------------\r\n    // MODIFIERS\r\n    // --------------------------------------------------\r\n\r\n    modifier onlyOwner() {\r\n        require(\r\n            msg.sender == owner,\r\n            \"Only owner\"\r\n        );\r\n        _;\r\n    }\r\n\r\n    modifier onlyMarketplace() {\r\n        require(\r\n            msg.sender == marketplace,\r\n            \"Only marketplace\"\r\n        );\r\n        _;\r\n    }\r\n\r\n    // --------------------------------------------------\r\n    // SET MARKETPLACE\r\n    // --------------------------------------------------\r\n\r\n    function setMarketplace(\r\n        address marketplaceAddress\r\n    )\r\n        external\r\n        onlyOwner\r\n    {\r\n        require(\r\n            marketplaceAddress != address(0),\r\n            \"Invalid marketplace\"\r\n        );\r\n\r\n        marketplace = marketplaceAddress;\r\n\r\n        emit MarketplaceUpdated(\r\n            marketplaceAddress\r\n        );\r\n    }\r\n\r\n    // --------------------------------------------------\r\n    // RECORD SUCCESS\r\n    // --------------------------------------------------\r\n\r\n    function recordSuccess(\r\n        uint256 agentId\r\n    )\r\n        external\r\n        onlyMarketplace\r\n    {\r\n        Reputation storage reputation =\r\n            reputations[agentId];\r\n\r\n        reputation.score += 10;\r\n        reputation.completedJobs++;\r\n\r\n        emit ReputationUpdated(\r\n            agentId,\r\n            reputation.score,\r\n            reputation.completedJobs,\r\n            reputation.failedJobs\r\n        );\r\n    }\r\n\r\n    // --------------------------------------------------\r\n    // RECORD FAILURE\r\n    // --------------------------------------------------\r\n\r\n    function recordFailure(\r\n        uint256 agentId\r\n    )\r\n        external\r\n        onlyMarketplace\r\n    {\r\n        Reputation storage reputation =\r\n            reputations[agentId];\r\n\r\n        if (reputation.score >= 5) {\r\n            reputation.score -= 5;\r\n        } else {\r\n            reputation.score = 0;\r\n        }\r\n\r\n        reputation.failedJobs++;\r\n\r\n        emit ReputationUpdated(\r\n            agentId,\r\n            reputation.score,\r\n            reputation.completedJobs,\r\n            reputation.failedJobs\r\n        );\r\n    }\r\n\r\n    // --------------------------------------------------\r\n    // GET REPUTATION\r\n    // --------------------------------------------------\r\n\r\n    function getReputation(\r\n        uint256 agentId\r\n    )\r\n        external\r\n        view\r\n        returns (\r\n            uint256 score,\r\n            uint256 completedJobs,\r\n            uint256 failedJobs\r\n        )\r\n    {\r\n        Reputation memory reputation =\r\n            reputations[agentId];\r\n\r\n        return (\r\n            reputation.score,\r\n            reputation.completedJobs,\r\n            reputation.failedJobs\r\n        );\r\n    }\r\n}"
+      }
+    }
+  }
+}
