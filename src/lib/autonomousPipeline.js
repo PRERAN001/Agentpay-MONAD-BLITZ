@@ -41,7 +41,7 @@ export async function runAutonomousPipeline({
 
   const provider = signer.provider
   const signerAddress = (await signer.getAddress()).toLowerCase()
-  const { jobMarketplace, agentRegistry, reputationManager } = getContracts(provider)
+  const { jobMarketplace, agentRegistry, reputationManager, jobEscrow } = getContracts(provider)
 
   // ----------------------------------------------------
   // Stage 1: Search Agents & Ownership Verification

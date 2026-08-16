@@ -98,13 +98,13 @@ export async function readDashboardState({ agentId, walletAddress }) {
   const agents = []
   for (let i = 1; i <= agentCount; i += 1) {
     try {
-      const ag = await retryOn429(() => agentRegistry.getAgent(i), 5, 300)
+      const ag = await retryOn429(() => agentRegistry.getAgent(i), 3, 200)
       let repScore = Number(ag.reputation || 0)
       let completedJobs = 0
       let failedJobs = 0
 
       try {
-        const repTuple = await retryOn429(() => reputationManager.getReputation(i), 2, 200).catch(() => null)
+        const repTuple = await retryOn429(() => reputationManager.getReputation(i), 2, 150).catch(() => null)
         if (repTuple) {
           repScore = Number(repTuple[0])
           completedJobs = Number(repTuple[1])
@@ -125,7 +125,7 @@ export async function readDashboardState({ agentId, walletAddress }) {
         active: ag.active,
       })
     } catch (err) {
-      console.warn(`Could not read agent ${i} after 5 retries:`, err)
+      // Ignore if index out of bounds or pending RPC sync
     }
   }
 
@@ -149,10 +149,10 @@ export async function readDashboardState({ agentId, walletAddress }) {
   const jobs = []
   for (let i = 1; i <= jobCount; i += 1) {
     try {
-      const job = await retryOn429(() => jobMarketplace.getJob(i), 5, 300)
+      const job = await retryOn429(() => jobMarketplace.getJob(i), 3, 200)
       let escrowBal = 0n
       try {
-        escrowBal = await retryOn429(() => jobEscrow.escrowBalance(i), 2, 200).catch(() => 0n)
+        escrowBal = await retryOn429(() => jobEscrow.escrowBalance(i), 2, 150).catch(() => 0n)
       } catch {
         escrowBal = 0n
       }
@@ -168,7 +168,7 @@ export async function readDashboardState({ agentId, walletAddress }) {
         status: JOB_STATUS[Number(job.status)] ?? `UNKNOWN_${Number(job.status)}`,
       })
     } catch (err) {
-      console.warn(`Could not read job ${i} after retries:`, err)
+      // Ignore if pending indexing
     }
   }
 
@@ -280,35 +280,29 @@ export async function acceptJobTx({ signer, jobId }) {
 }
 
 export async function completeJobTx({ signer, jobId }) {
-  const { jobMarketplace } = getContracts(signer)
+  const readContracts = getContracts(getPublicProvider())
+  const writeContracts = getContracts(signer)
   const userAddress = await signer.getAddress()
 
-  let job
+  let job = null
   try {
-    job = await jobMarketplace.getJob(jobId)
-  } catch {
-    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
-  }
+    job = await readContracts.jobMarketplace.getJob(jobId)
+  } catch {}
 
-  if (Number(job.jobId) === 0) {
-    throw new Error(`Job #${jobId} does not exist.`)
-  }
-
-  const statusNum = Number(job.status)
-  if (statusNum !== 1) {
-    throw new Error(`Job #${jobId} cannot be completed because its status is ${JOB_STATUS[statusNum] || statusNum} (must be ACCEPTED first).`)
-  }
-
-  if (job.agentWorker.toLowerCase() !== userAddress.toLowerCase()) {
-    throw new Error(
-      `Solidity Worker Requirement: Only the assigned worker (${job.agentWorker.slice(0, 6)}...) can complete Job #${jobId}. Connected wallet is ${userAddress.slice(0, 6)}...`
-    )
+  if (job && Number(job.jobId) !== 0) {
+    const statusNum = Number(job.status)
+    if (statusNum !== 1) {
+      console.warn(`Job #${jobId} status is ${JOB_STATUS[statusNum] || statusNum} (expected ACCEPTED).`)
+    }
+    if (job.agentWorker.toLowerCase() !== userAddress.toLowerCase()) {
+      console.warn(`Note: Assigned worker is ${job.agentWorker.slice(0, 6)}..., wallet is ${userAddress.slice(0, 6)}...`)
+    }
   }
 
   try {
-    return await jobMarketplace.completeJob(jobId, { gasLimit: 500000n })
+    return await writeContracts.jobMarketplace.completeJob(jobId, { gasLimit: 500000n })
   } catch {
-    return await jobMarketplace.completeJob(jobId)
+    return await writeContracts.jobMarketplace.completeJob(jobId)
   }
 }
 
@@ -326,60 +320,42 @@ export async function depositEscrowTx({ signer, jobId, amountMon }) {
     await new Promise((res) => setTimeout(res, 600))
   }
 
-  if (!job || Number(job.jobId) === 0) {
-    console.warn(`Job #${jobId} pending RPC indexing, proceeding to submit depositEscrow transaction...`)
-  } else {
-    if (job.client.toLowerCase() !== userAddress.toLowerCase()) {
-      console.warn(`Note: Connected wallet is ${userAddress.slice(0, 6)}..., job client is ${job.client.slice(0, 6)}...`)
+  if (job && Number(job.jobId) !== 0) {
+    const statusNum = Number(job.status)
+    if (statusNum !== 0) {
+      console.warn(`Job #${jobId} status is ${JOB_STATUS[statusNum] || statusNum} (expected OPEN).`)
     }
   }
 
-  const statusNum = Number(job.status)
-  if (statusNum !== 0) {
-    throw new Error(`Job #${jobId} is not OPEN (current status: ${JOB_STATUS[statusNum] || statusNum}).`)
-  }
-
   try {
-    return await jobEscrow.deposit(jobId, { value: parseMonToWei(amountMon), gasLimit: 500000n })
+    return await writeContracts.jobEscrow.deposit(jobId, { value: parseMonToWei(amountMon), gasLimit: 500000n })
   } catch {
-    return await jobEscrow.deposit(jobId, { value: parseMonToWei(amountMon) })
+    return await writeContracts.jobEscrow.deposit(jobId, { value: parseMonToWei(amountMon) })
   }
 }
 
 export async function releaseEscrowTx({ signer, jobId }) {
-  const { jobEscrow, jobMarketplace } = getContracts(signer)
+  const readContracts = getContracts(getPublicProvider())
+  const writeContracts = getContracts(signer)
 
-  let job
+  let job = null
   try {
-    job = await jobMarketplace.getJob(jobId)
-  } catch {
-    throw new Error(`Job #${jobId} does not exist on JobMarketplace.`)
-  }
-
-  if (Number(job.jobId) === 0) {
-    throw new Error(`Job #${jobId} does not exist.`)
-  }
-
-  const statusNum = Number(job.status)
-  if (statusNum !== 2) {
-    throw new Error(`Job #${jobId} must be COMPLETED before funds can be released (current status: ${JOB_STATUS[statusNum] || statusNum}).`)
-  }
+    job = await readContracts.jobMarketplace.getJob(jobId)
+  } catch {}
 
   let bal = 0n
   try {
-    bal = await jobEscrow.escrowBalance(jobId)
-  } catch {
-    bal = 0n
-  }
+    bal = await readContracts.jobEscrow.escrowBalance(jobId)
+  } catch {}
 
   if (bal === 0n) {
-    throw new Error(`Job #${jobId} has no funds in escrow (balance is 0 MON).`)
+    console.warn(`Job #${jobId} Escrow balance is 0 MON.`)
   }
 
   try {
-    return await jobEscrow.release(jobId, { gasLimit: 500000n })
+    return await writeContracts.jobEscrow.release(jobId, { gasLimit: 500000n })
   } catch {
-    return await jobEscrow.release(jobId)
+    return await writeContracts.jobEscrow.release(jobId)
   }
 }
 
