@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_14-a3ce2ec445425024b8ed32586aa92bfc421c2ee6",
+  "solcVersion": "0.8.14",
+  "solcLongVersion": "0.8.14+commit.80d49f37",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.13.0"
+  },
+  "userSourceNameMap": {
+    "contracts/JobEscrow.sol": "project/contracts/JobEscrow.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "london",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/JobEscrow.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.14;\r\n\r\ninterface IJobMarketplace {\r\n\r\n    enum JobStatus {\r\n        OPEN,\r\n        ACCEPTED,\r\n        COMPLETED\r\n    }\r\n\r\n    struct Job {\r\n        uint256 jobId;\r\n        address client;\r\n        uint256 agentId;\r\n        string description;\r\n        uint256 reward;\r\n        address agentWorker;\r\n        JobStatus status;\r\n    }\r\n\r\n    function getJob(uint256 jobId)\r\n        external\r\n        view\r\n        returns (Job memory);\r\n}\r\n\r\ninterface IAgentRegistry {\r\n\r\n    struct Agent {\r\n        address owner;\r\n        string name;\r\n        string metadataURI;\r\n        uint256 price;\r\n        uint256 reputation;\r\n        bool active;\r\n    }\r\n\r\n    function getAgent(uint256 agentId)\r\n        external\r\n        view\r\n        returns (Agent memory);\r\n}\r\n\r\ncontract JobEscrow {\r\n\r\n    IJobMarketplace public marketplace;\r\n    IAgentRegistry public registry;\r\n\r\n    mapping(uint256 => uint256) public escrowBalance;\r\n\r\n    event PaymentDeposited(\r\n        uint256 indexed jobId,\r\n        address indexed client,\r\n        uint256 amount\r\n    );\r\n\r\n    event PaymentReleased(\r\n        uint256 indexed jobId,\r\n        address indexed agent,\r\n        uint256 amount\r\n    );\r\n\r\n    constructor(\r\n        address marketplaceAddress,\r\n        address registryAddress\r\n    ) {\r\n        marketplace = IJobMarketplace(marketplaceAddress);\r\n        registry = IAgentRegistry(registryAddress);\r\n    }\r\n\r\n    function deposit(uint256 jobId)\r\n        external\r\n        payable\r\n    {\r\n        IJobMarketplace.Job memory job =\r\n            marketplace.getJob(jobId);\r\n\r\n        require(\r\n            job.jobId != 0,\r\n            \"Job does not exist\"\r\n        );\r\n\r\n        require(\r\n            job.client == msg.sender,\r\n            \"Not job client\"\r\n        );\r\n\r\n        require(\r\n            job.status == IJobMarketplace.JobStatus.OPEN,\r\n            \"Job not open\"\r\n        );\r\n\r\n        require(\r\n            msg.value == job.reward,\r\n            \"Incorrect payment\"\r\n        );\r\n\r\n        escrowBalance[jobId] += msg.value;\r\n\r\n        emit PaymentDeposited(\r\n            jobId,\r\n            msg.sender,\r\n            msg.value\r\n        );\r\n    }\r\n\r\n    function release(uint256 jobId)\r\n        external\r\n    {\r\n        IJobMarketplace.Job memory job =\r\n            marketplace.getJob(jobId);\r\n\r\n        require(\r\n            job.jobId != 0,\r\n            \"Job does not exist\"\r\n        );\r\n\r\n        require(\r\n            job.status == IJobMarketplace.JobStatus.COMPLETED,\r\n            \"Job not completed\"\r\n        );\r\n\r\n        uint256 amount = escrowBalance[jobId];\r\n\r\n        require(\r\n            amount > 0,\r\n            \"No funds in escrow\"\r\n        );\r\n\r\n        escrowBalance[jobId] = 0;\r\n\r\n        IAgentRegistry.Agent memory agent =\r\n            registry.getAgent(job.agentId);\r\n\r\n        payable(agent.owner).transfer(amount);\r\n\r\n        emit PaymentReleased(\r\n            jobId,\r\n            agent.owner,\r\n            amount\r\n        );\r\n    }\r\n}"
+      }
+    }
+  }
+}

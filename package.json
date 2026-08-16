@@ -1,0 +1,32 @@
+{
+  "name": "agent-runtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "wallet": "node create-wallet.js",
+    "agent": "node agent.js",
+    "check": "node --check create-wallet.js && node --check agent.js && node --check src/blockchain.js && node --check src/agent.js && node --check src/marketplace.js && node --check src/wallet.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition": "^3.1.8",
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^5.0.2",
+    "@types/node": "^22.20.1",
+    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
+    "hardhat": "^3.13.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.3",
+    "vite": "^7.1.3",
+    "viem": "^2.55.16"
+  }
+}
